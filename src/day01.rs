@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use eyre::{eyre, Result};
 
 #[derive(Debug)]
@@ -41,13 +43,32 @@ impl Game {
         let total = left.into_iter().zip(right);
         total.map(|(a, b)| (a - b).abs()).sum()
     }
+
+    pub fn solve_b(&self) -> i32 {
+        let mut hash = HashMap::new();
+
+        for i in self.right.iter() {
+            let entry = hash.entry(i).or_insert(0);
+            *entry += 1;
+        }
+
+        self.left
+            .iter()
+            .map(|v| {
+                let times = hash.get(v).unwrap_or(&0);
+                v * times
+            })
+            .sum()
+    }
 }
 
 fn main() -> Result<()> {
     let data = std::fs::read_to_string("data/day01.txt")?;
     let game = Game::parse(&data)?;
-    let a = game.solve_a();
 
-    println!("A: {}", a);
+    let a = game.solve_a();
+    let b = game.solve_b();
+
+    println!("A: {}\nB: {}", a, b);
     Ok(())
 }
