@@ -9,6 +9,12 @@ impl Mul {
     }
 }
 
+enum Instruction {
+    Mul(Mul),
+    Start,
+    Stop,
+}
+
 fn parse_tag<'a>(input: &'a str, tag: &str) -> Option<((), &'a str)> {
     if input.len() >= tag.len() && &input[0..tag.len()] == tag {
         Some(((), &input[tag.len()..]))
@@ -39,6 +45,22 @@ fn parse_mul(input: &str) -> Option<(Mul, &str)> {
     Some((Mul(a, b), input))
 }
 
+fn parse_instruction(input: &str) -> Option<(Instruction, &str)> {
+    if let Some((mul, rest)) = parse_mul(input) {
+        return Some((Instruction::Mul(mul), rest));
+    }
+
+    if let Some((_, rest)) = parse_tag(input, "do()") {
+        return Some((Instruction::Start, rest));
+    }
+
+    if let Some((_, rest)) = parse_tag(input, "don't()") {
+        return Some((Instruction::Stop, rest));
+    }
+
+    None
+}
+
 struct Game<'a>(&'a str);
 
 impl<'a> Game<'a> {
@@ -50,7 +72,7 @@ impl<'a> Game<'a> {
         let mut items = vec![];
         let mut data = self.0;
 
-        while data.len() > 0 {
+        while !data.is_empty() {
             let result = parse_mul(data);
 
             match result {
@@ -66,7 +88,33 @@ impl<'a> Game<'a> {
     }
 
     pub fn solve_b(&self) -> i32 {
-        42
+        let mut items = vec![];
+        let mut enabled = true;
+        let mut data = self.0;
+
+        while !data.is_empty() {
+            let result = parse_instruction(data);
+
+            match result {
+                Some((Instruction::Mul(mul), rest)) => {
+                    data = rest;
+                    if enabled {
+                        items.push(mul)
+                    };
+                }
+                Some((Instruction::Start, rest)) => {
+                    data = rest;
+                    enabled = true
+                }
+                Some((Instruction::Stop, rest)) => {
+                    data = rest;
+                    enabled = false;
+                }
+                None => data = &data[1..],
+            }
+        }
+
+        items.iter().map(|i| i.result()).sum()
     }
 }
 
