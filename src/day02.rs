@@ -5,6 +5,36 @@ struct Report(Vec<i32>);
 #[derive(Debug)]
 struct Game(Vec<Report>);
 
+struct PairIter<'a> {
+    numbers: &'a [i32],
+    current: usize,
+}
+
+impl<'a> PairIter<'a> {
+    pub fn new(numbers: &'a [i32]) -> Self {
+        Self {
+            numbers,
+            current: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for PairIter<'a> {
+    type Item = (i32, i32);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if (self.current + 1) < self.numbers.len() {
+            let a = self.numbers[self.current];
+            let b = self.numbers[self.current + 1];
+
+            self.current += 1;
+            Some((a, b))
+        } else {
+            None
+        }
+    }
+}
+
 impl Report {
     pub fn parse(input: &str) -> Result<Self> {
         let numbers = input
@@ -19,17 +49,21 @@ impl Report {
         (self.all_up() || self.all_down()) && self.safe_margin()
     }
 
+    fn pairs(&self) -> PairIter {
+        PairIter::new(&self.0)
+    }
+
     fn all_up(&self) -> bool {
-        (0..self.0.len() - 1).all(|idx| self.0[idx] < self.0[idx + 1])
+        self.pairs().all(|(a, b)| a < b)
     }
 
     fn all_down(&self) -> bool {
-        (0..self.0.len() - 1).all(|idx| self.0[idx] > self.0[idx + 1])
+        self.pairs().all(|(a, b)| a > b)
     }
 
     fn safe_margin(&self) -> bool {
-        (0..self.0.len() - 1).all(|idx| {
-            let margin = (self.0[idx] - self.0[idx + 1]).abs();
+        self.pairs().all(|(a, b)| {
+            let margin = (a - b).abs();
             (1..=3).contains(&margin)
         })
     }
