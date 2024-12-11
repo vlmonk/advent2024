@@ -77,6 +77,11 @@ fn is_xmas(input: (Option<char>, Option<char>, Option<char>, Option<char>)) -> b
     matches!(input, (Some('X'), Some('M'), Some('A'), Some('S')))
 }
 
+fn is_mas(input: (Option<char>, Option<char>, Option<char>)) -> bool {
+    matches!(input, (Some('M'), Some('A'), Some('S')))
+        || matches!(input, (Some('S'), Some('A'), Some('M')))
+}
+
 impl Game {
     fn new(data: &str) -> Self {
         let lines = data.lines();
@@ -107,8 +112,15 @@ impl Game {
             .count()
     }
 
-    fn solve_b(&self) -> i32 {
-        42
+    fn solve_b(&self) -> usize {
+        GridIter::new(self.width, self.height)
+            .filter(|p| {
+                let w1 = self.get_3(p, &Direction::new(1, 1));
+                let w2 = self.get_3(p, &Direction::new(1, -1));
+
+                is_mas(w1) && is_mas(w2)
+            })
+            .count()
     }
 
     fn get(&self, p: &Point) -> Option<char> {
@@ -118,6 +130,14 @@ impl Game {
         } else {
             None
         }
+    }
+
+    fn get_3(&self, p: &Point, d: &Direction) -> (Option<char>, Option<char>, Option<char>) {
+        (
+            self.get(&p.step(d, -1)),
+            self.get(p),
+            self.get(&p.step(d, 1)),
+        )
     }
 
     fn get_4(
