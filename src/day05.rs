@@ -22,8 +22,7 @@ impl Rules {
     }
 
     fn is_match(&self, a: i32, b: i32) -> bool {
-        let result = self.0.contains(&(a, b));
-        result
+        self.0.contains(&(a, b))
     }
 }
 
@@ -81,9 +80,38 @@ impl Game {
             .sum()
     }
 
-    fn solve_b(&self) -> usize {
-        42
+    fn solve_b(&self) -> i32 {
+        self.produce
+            .iter()
+            .filter(|p| !p.is_valid(&self.rules))
+            .map(|p| reorder(p, &self.rules))
+            .map(|p| p.get_middle())
+            .sum()
     }
+}
+
+fn reorder(input: &Produce, rules: &Rules) -> Produce {
+    let mut items = vec![];
+    let mut rest: HashSet<_> = input.0.iter().cloned().collect();
+
+    while !rest.is_empty() {
+        let founded = find_head(&rest, rules);
+        items.push(founded);
+        rest.remove(&founded);
+    }
+
+    Produce(items)
+}
+
+fn find_head(input: &HashSet<i32>, rules: &Rules) -> i32 {
+    let founded = input.iter().find(|&&a| {
+        input
+            .iter()
+            .filter(|&&b| b != a)
+            .all(|&b| rules.is_match(a, b))
+    });
+
+    *founded.expect("AHAHA")
 }
 
 fn main() -> Result<()> {
