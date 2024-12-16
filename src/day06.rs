@@ -1,6 +1,12 @@
 use eyre::Result;
 use std::collections::HashSet;
 
+#[derive(Debug, PartialEq)]
+enum RunResult {
+    Out,
+    Loop,
+}
+
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
 struct Position {
     x: i32,
@@ -8,6 +14,10 @@ struct Position {
 }
 
 impl Position {
+    fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
+
     fn from_usize(x: usize, y: usize) -> Self {
         Self {
             x: x as i32,
@@ -37,7 +47,7 @@ impl Position {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Direction {
     Up,
     Right,
@@ -56,7 +66,7 @@ impl Direction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Player {
     position: Position,
     direction: Direction,
@@ -68,6 +78,9 @@ struct Game {
     height: i32,
     walls: HashSet<Position>,
     player: Player,
+    initial_player: Player,
+    moves: HashSet<Player>,
+    additional_wall: Option<Position>,
 }
 
 impl Game {
@@ -100,13 +113,23 @@ impl Game {
         }
 
         let player = player.expect("Player not found in map");
+        let initial_player = player.clone();
 
         Game {
             width,
             height,
             walls,
             player,
+            initial_player,
+            moves: HashSet::new(),
+            additional_wall: None,
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.player = self.initial_player.clone();
+        self.moves = HashSet::new();
+        self.additional_wall = None;
     }
 
     pub fn tick(&mut self) {
@@ -119,6 +142,19 @@ impl Game {
         }
     }
 
+    pub fn run(&mut self) -> RunResult {
+        loop {
+            self.moves.insert(self.player.clone());
+            self.tick();
+            if self.is_out() {
+                return RunResult::Out;
+            }
+            if self.moves.contains(&self.player) {
+                return RunResult::Loop;
+            }
+        }
+    }
+
     pub fn is_out(&self) -> bool {
         self.player.position.x < 0
             || self.player.position.x >= self.width
@@ -127,25 +163,50 @@ impl Game {
     }
 
     fn have_vall(&self, point: &Position) -> bool {
-        self.walls.contains(point)
+        let is_match_additional = match self.additional_wall {
+            Some(ref wall) => wall == point,
+            _ => false,
+        };
+
+        self.walls.contains(point) || is_match_additional
+    }
+
+    pub fn uniq_positions(&self) -> usize {
+        let positions: HashSet<_> = self.moves.iter().map(|m| m.position).collect();
+        positions.len()
+    }
+
+    pub fn possible_walls(&self) -> impl Iterator<Item = Position> {
+        let height = self.height;
+        let width = self.width;
+        let player = self.initial_player.clone();
+        let walls = self.walls.clone();
+
+        (0..height)
+            .flat_map(move |y| (0..width).map(move |x| Position::new(x, y)))
+            .filter(move |p| !walls.contains(p) && &player.position != p)
     }
 }
 
 fn main() -> Result<()> {
     let data = std::fs::read_to_string("data/day06.txt")?;
     let mut game = Game::parse(&data);
+    let r = game.run();
 
-    let mut positions = HashSet::new();
-    loop {
-        positions.insert(game.player.position);
-        game.tick();
+    dbg!(r);
+    println!("{}", game.uniq_positions());
 
-        if game.is_out() {
-            break;
-        }
-    }
+    let abc = game
+        .possible_walls()
+        .map(|p| {
+            game.reset();
+            game.additional_wall = Some(p);
+            game.run()
+        })
+        .filter(|r| r == &RunResult::Loop)
+        .count();
 
-    println!("{}", positions.len());
+    dbg!(abc);
 
     Ok(())
 }
