@@ -13,7 +13,7 @@ enum Instruction {
 }
 
 impl Instruction {
-    fn from_i32(input: i32) -> Self {
+    fn from_i64(input: i64) -> Self {
         match input {
             0 => Self::Adv,
             1 => Self::Bxl,
@@ -30,14 +30,14 @@ impl Instruction {
 
 #[derive(Debug)]
 enum Combo {
-    Literal(i32),
+    Literal(i64),
     RegA,
     RegB,
     RegC,
 }
 
 impl Combo {
-    fn from_i32(input: i32) -> Self {
+    fn from_i64(input: i64) -> Self {
         match input {
             n @ 0..=3 => Self::Literal(n),
             4 => Self::RegA,
@@ -47,7 +47,7 @@ impl Combo {
         }
     }
 
-    fn value(&self, cpu: &Cpu) -> i32 {
+    fn value(&self, cpu: &Cpu) -> i64 {
         match &self {
             Self::Literal(n) => *n,
             Self::RegA => cpu.reg_a,
@@ -58,10 +58,10 @@ impl Combo {
 }
 
 #[derive(Debug)]
-struct Programm(Vec<i32>);
+struct Programm(Vec<i64>);
 
 impl Programm {
-    fn new(input: Vec<i32>) -> Self {
+    fn new(input: Vec<i64>) -> Self {
         Self(input)
     }
 
@@ -69,41 +69,41 @@ impl Programm {
         let data = input.split(": ").nth(1).expect("invalid input").trim();
         let numbers = data
             .split(',')
-            .map(|raw| raw.parse::<i32>().expect("Bad number"))
+            .map(|raw| raw.parse::<i64>().expect("Bad number"))
             .collect();
 
         Self::new(numbers)
     }
 
     fn get_inst(&self, index: usize) -> Option<Instruction> {
-        self.0.get(index).map(|n| Instruction::from_i32(*n))
+        self.0.get(index).map(|n| Instruction::from_i64(*n))
     }
 
     fn get_combo(&self, index: usize) -> Option<Combo> {
-        self.0.get(index).map(|n| Combo::from_i32(*n))
+        self.0.get(index).map(|n| Combo::from_i64(*n))
     }
 
-    fn get_literal(&self, index: usize) -> Option<i32> {
+    fn get_literal(&self, index: usize) -> Option<i64> {
         self.0.get(index).copied()
     }
 }
 
-fn parse_reg(input: &str) -> i32 {
+fn parse_reg(input: &str) -> i64 {
     input
         .split(": ")
         .nth(1)
-        .and_then(|raw| raw.parse::<i32>().ok())
+        .and_then(|raw| raw.parse::<i64>().ok())
         .expect("wrong number")
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Cpu {
-    reg_a: i32,
-    reg_b: i32,
-    reg_c: i32,
+    reg_a: i64,
+    reg_b: i64,
+    reg_c: i64,
 
     ip: usize,
-    output: Vec<i32>,
+    output: Vec<i64>,
 }
 
 impl Cpu {
@@ -116,7 +116,7 @@ impl Cpu {
         Self::new(reg_a, reg_b, reg_c)
     }
 
-    fn new(reg_a: i32, reg_b: i32, reg_c: i32) -> Self {
+    fn new(reg_a: i64, reg_b: i64, reg_c: i64) -> Self {
         Self {
             reg_a,
             reg_b,
@@ -132,6 +132,9 @@ impl Cpu {
             if result.is_none() {
                 break;
             }
+            // if self.output.len() > 0 && self.output[0] != 2 {
+            //     break;
+            // }
         }
     }
 
@@ -146,22 +149,23 @@ impl Cpu {
             }
             Instruction::Out => {
                 let value = programm.get_combo(self.ip + 1)?.value(self) % 8;
+                // let value = programm.get_combo(self.ip + 1)?.value(self);
                 self.output.push(value);
                 self.ip += 2;
             }
             Instruction::Adv => {
                 let value = programm.get_combo(self.ip + 1)?.value(self);
-                self.reg_a /= 2_i32.pow(value as u32);
+                self.reg_a /= 2_i64.pow(value as u32);
                 self.ip += 2;
             }
             Instruction::Bdv => {
                 let value = programm.get_combo(self.ip + 1)?.value(self);
-                self.reg_b = self.reg_a / 2_i32.pow(value as u32);
+                self.reg_b = self.reg_a / 2_i64.pow(value as u32);
                 self.ip += 2;
             }
             Instruction::Cdv => {
                 let value = programm.get_combo(self.ip + 1)?.value(self);
-                self.reg_c = self.reg_a / 2_i32.pow(value as u32);
+                self.reg_c = self.reg_a / 2_i64.pow(value as u32);
                 self.ip += 2;
             }
             Instruction::Jnz => {
@@ -206,8 +210,28 @@ fn parse(input: &str) -> (Cpu, Programm) {
 fn main() {
     let data = std::fs::read_to_string("data/day17.txt").unwrap();
     let (mut cpu, programm) = parse(&data);
-    cpu.run(&programm);
-    println!("{}", cpu.output_str());
+    let orig = cpu.clone();
+    // cpu.run(&programm);
+    // println!("{}", cpu.output_str());
+
+    // let mut start = 123179200000000000;
+    // let step = 100_000_000_000;
+    let mut start = 0o7026424520000000;
+    let mut step = 1;
+    loop {
+        let mut cpu = orig.clone();
+        cpu.reg_a = start;
+        cpu.run(&programm);
+        // println!("{} / {:o}-> {}", start, start, cpu.output_str());
+
+        start += step;
+        // break;
+
+        if cpu.output == programm.0 {
+            println!("{}", start - 1);
+            break;
+        }
+    }
 }
 
 #[cfg(test)]
