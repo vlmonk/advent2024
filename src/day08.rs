@@ -3,6 +3,41 @@ use std::{
     ops::{Add, Sub},
 };
 
+struct PointIter {
+    x0: i32,
+    y0: i32,
+
+    x_step: i32,
+    y_step: i32,
+
+    n: i32,
+}
+
+impl PointIter {
+    fn new(a: &Point, b: &Point) -> Self {
+        Self {
+            x0: a.x,
+            y0: a.y,
+            x_step: b.x - a.x,
+            y_step: b.y - a.y,
+            n: 1,
+        }
+    }
+}
+
+impl Iterator for PointIter {
+    type Item = Point;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let x = self.x0 + self.x_step * self.n;
+        let y = self.y0 + self.y_step * self.n;
+
+        self.n += 1;
+
+        Some(Point { x, y })
+    }
+}
+
 struct PairsIter<'a, T> {
     items: &'a [T],
     a: usize,
@@ -102,17 +137,6 @@ impl BBox {
     }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq)]
-struct Antenna {
-    freq: Freq,
-    point: Point,
-}
-impl Antenna {
-    fn new(freq: Freq, point: Point) -> Self {
-        Self { freq, point }
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 struct Vector {
     x: i32,
@@ -127,7 +151,7 @@ impl Vector {
 
 #[derive(Debug)]
 struct Game {
-    antennas: HashSet<Antenna>,
+    antennas: HashMap<Freq, Vec<Point>>,
     b_box: BBox,
 }
 
@@ -135,7 +159,7 @@ impl Game {
     fn parse(input: &str) -> Self {
         let mut max_x = 0;
         let mut max_y = 0;
-        let mut antennas = HashSet::new();
+        let mut antennas: HashMap<Freq, Vec<Point>> = HashMap::new();
 
         for (y, line) in input.lines().enumerate() {
             max_y = max_y.max(y);
@@ -146,8 +170,7 @@ impl Game {
                     '.' => {}
                     f => {
                         let freq = Freq(f);
-                        let antenna = Antenna::new(freq, point);
-                        antennas.insert(antenna);
+                        antennas.entry(freq).or_default().push(point);
                     }
                 }
             }
@@ -159,32 +182,38 @@ impl Game {
     }
 
     fn solve_a(&self) -> usize {
-        let mut by_type: HashMap<Freq, Vec<Point>> = HashMap::new();
-        let mut antinodes: HashSet<Point> = HashSet::new();
+        let total: HashSet<Point> = self
+            .antennas
+            .values()
+            .flat_map(|a| PairsIter::new(a))
+            .flat_map(|(a, b)| {
+                let s1 = PointIter::new(a, b)
+                    .take_while(|p| self.b_box.within(p))
+                    .take(1);
+                let s2 = PointIter::new(b, a)
+                    .take_while(|p| self.b_box.within(p))
+                    .take(1);
+                s1.chain(s2)
+            })
+            .collect();
 
-        for antenna in &self.antennas {
-            by_type.entry(antenna.freq).or_default().push(antenna.point);
-        }
+        total.len()
+    }
 
-        for (_, antennas) in by_type {
-            let pairs = PairsIter::new(&antennas);
-            for (a, b) in pairs {
-                let vec = a.diff(b);
+    fn solve_b(&self) -> usize {
+        let total: HashSet<Point> = self
+            .antennas
+            .values()
+            .flat_map(|a| PairsIter::new(a))
+            .flat_map(|(a, b)| {
+                let s1 = PointIter::new(a, b).take_while(|p| self.b_box.within(p));
+                let s2 = PointIter::new(b, a).take_while(|p| self.b_box.within(p));
+                s1.chain(s2)
+            })
+            .collect();
 
-                let p1 = *a - vec;
-                let p2 = *b + vec;
-
-                if self.b_box.within(&p1) {
-                    antinodes.insert(p1);
-                }
-
-                if self.b_box.within(&p2) {
-                    antinodes.insert(p2);
-                }
-            }
-        }
-
-        antinodes.len()
+        // dbg!(&total);
+        total.len()
     }
 }
 
@@ -194,4 +223,7 @@ fn main() {
 
     let a = game.solve_a();
     println!("A: {}", a);
+
+    let b = game.solve_b();
+    println!("B: {}", b);
 }
