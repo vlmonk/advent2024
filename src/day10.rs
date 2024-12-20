@@ -64,6 +64,10 @@ impl Field {
         all.into_iter().collect::<HashSet<_>>().len()
     }
 
+    pub fn rating(&self, x: i32, y: i32) -> usize {
+        self.available(x, y, 0).len()
+    }
+
     pub fn available(&self, x: i32, y: i32, target: i32) -> Vec<(i32, i32)> {
         match self.at(x, y) {
             Place::Present(9) if target == 9 => {
@@ -88,12 +92,17 @@ impl Field {
     pub fn score_a(&self) -> usize {
         self.start_points().map(|(x, y)| self.score(x, y)).sum()
     }
+
+    pub fn score_b(&self) -> usize {
+        self.start_points().map(|(x, y)| self.rating(x, y)).sum()
+    }
 }
 
 fn main() {
     let data = std::fs::read_to_string("data/day10.txt").expect("file not found");
     let field = Field::parse(&data);
     let a = field.score_a();
+    let b = field.score_b();
 
-    println!("A: {}", a);
+    println!("A: {}\nB: {}", a, b);
 }
