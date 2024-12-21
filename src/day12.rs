@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Eq, PartialEq, Hash, Debug, Clone, Copy)]
 struct Point {
@@ -11,12 +11,12 @@ impl Point {
         Self { x, y }
     }
 
-    fn around(&self) -> impl Iterator<Item = Self> {
+    fn around(&self) -> impl Iterator<Item = (Self, Direction)> {
         [
-            Self::new(self.x, self.y - 1),
-            Self::new(self.x + 1, self.y),
-            Self::new(self.x, self.y + 1),
-            Self::new(self.x - 1, self.y),
+            (Self::new(self.x, self.y - 1), Direction::Up),
+            (Self::new(self.x + 1, self.y), Direction::Right),
+            (Self::new(self.x, self.y + 1), Direction::Down),
+            (Self::new(self.x - 1, self.y), Direction::Left),
         ]
         .into_iter()
     }
@@ -72,62 +72,77 @@ impl Field {
     }
 }
 
-#[derive(Debug)]
-struct RegionEntry {
-    position: Point,
-    borders: usize,
+#[derive(Debug, Eq, PartialEq, Hash)]
+enum Direction {
+    Up,
+    Right,
+    Down,
+    Left,
 }
 
-impl RegionEntry {
-    fn new(position: Point) -> Self {
-        Self {
-            position,
-            borders: 0,
-        }
+#[derive(Debug, Eq, Hash, PartialEq)]
+struct Border {
+    position: Point,
+    btype: Direction,
+}
+
+impl Border {
+    fn new(position: Point, btype: Direction) -> Self {
+        Self { position, btype }
     }
 }
 
 #[derive(Debug)]
-struct Region(Vec<RegionEntry>);
+struct Region {
+    label: Label,
+    points: HashSet<Point>,
+    borders: HashSet<Border>,
+}
 
 impl Region {
     pub fn construct(start: Point, pool: &mut Field) -> Self {
         let label = pool.get(&start).expect("can't be empty");
 
+        let mut points: HashSet<Point> = HashSet::new();
+        let mut borders: HashSet<Border> = HashSet::new();
+
         let mut queue = VecDeque::new();
-        let mut entries: Vec<RegionEntry> = vec![];
+
         queue.push_back(start);
+        pool.delete(&start);
+        points.insert(start);
 
         while let Some(p) = queue.pop_front() {
-            let mut entry = RegionEntry::new(p);
+            pool.delete(&p);
+            points.insert(p);
 
-            for n in p.around() {
-                match pool.get(&n) {
-                    Some(current) if current == label => {
+            for (n, d) in p.around() {
+                match (pool.get(&n), points.get(&n)) {
+                    (Some(current), _) if current == label => {
                         if !queue.iter().any(|&p| p == n) {
                             queue.push_back(n);
                         }
                     }
-
-                    _ => {
-                        let is_current_region = entries.iter().any(|e| e.position == n);
-                        if !is_current_region {
-                            entry.borders += 1;
-                        }
+                    (_, Some(_)) => {}
+                    (_, None) => {
+                        let border = Border::new(n, d);
+                        borders.insert(border);
                     }
                 }
             }
-
-            entries.push(entry);
-            pool.delete(&p);
         }
 
-        Self(entries)
+        Self {
+            label,
+            points,
+            borders,
+        }
     }
 
     fn price(&self) -> usize {
-        let area = self.0.len();
-        let perimeter: usize = self.0.iter().map(|e| e.borders).sum();
+        let area = self.points.len();
+        let perimeter = self.borders.len();
+
         area * perimeter
     }
 }
