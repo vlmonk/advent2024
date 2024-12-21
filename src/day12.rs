@@ -72,7 +72,7 @@ impl Field {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
 enum Direction {
     Up,
     Right,
@@ -80,7 +80,7 @@ enum Direction {
     Left,
 }
 
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Eq, Hash, PartialEq, Clone)]
 struct Border {
     position: Point,
     btype: Direction,
@@ -92,9 +92,7 @@ impl Border {
     }
 }
 
-#[derive(Debug)]
 struct Region {
-    label: Label,
     points: HashSet<Point>,
     borders: HashSet<Border>,
 }
@@ -132,11 +130,7 @@ impl Region {
             }
         }
 
-        Self {
-            label,
-            points,
-            borders,
-        }
+        Self { points, borders }
     }
 
     fn price(&self) -> usize {
@@ -144,6 +138,88 @@ impl Region {
         let perimeter = self.borders.len();
 
         area * perimeter
+    }
+
+    fn price_discount(&self) -> usize {
+        let area = self.points.len();
+        area * self.segments()
+    }
+
+    fn segments(&self) -> usize {
+        let mut borders = self.borders.clone();
+        let mut total = 0;
+
+        // loop {
+        //     let current = borders.iter().next().cloned();
+
+        //     match current {
+        //         Some(Border { position, btype }) => {
+        //             total += 1;
+        //             match btype {
+        //                 Direction::Up | Direction::Down => {
+        //                     for i in 1.. {
+        //                         let p = Point::new(position.x + i, position.y);
+        //                         let b = Border::new(p, btype);
+
+        //                         if !borders.remove(&b) {
+        //                             break;
+        //                         }
+        //                     }
+        //                 }
+        //                 Direction::Left | Direction::Right => {}
+        //             }
+        //         }
+        //         None => break,
+        //     }
+        // }
+
+        while let Some(Border { position, btype }) = borders.iter().next().cloned() {
+            borders.remove(&Border::new(position, btype));
+
+            total += 1;
+            match btype {
+                Direction::Up | Direction::Down => {
+                    for i in 1.. {
+                        let p = Point::new(position.x + i, position.y);
+                        let b = Border::new(p, btype);
+
+                        if !borders.remove(&b) {
+                            break;
+                        }
+                    }
+
+                    for i in 1.. {
+                        let p = Point::new(position.x - i, position.y);
+                        let b = Border::new(p, btype);
+
+                        if !borders.remove(&b) {
+                            break;
+                        }
+                    }
+                }
+                Direction::Left | Direction::Right => {
+                    for i in 1.. {
+                        let p = Point::new(position.x, position.y + i);
+                        let b = Border::new(p, btype);
+
+                        if !borders.remove(&b) {
+                            break;
+                        }
+                    }
+
+                    for i in 1.. {
+                        let p = Point::new(position.x, position.y - i);
+                        let b = Border::new(p, btype);
+
+                        if !borders.remove(&b) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        total
     }
 }
 
@@ -153,5 +229,8 @@ fn main() {
     let regions = field.into_regions();
 
     let a: usize = regions.iter().map(|r| r.price()).sum();
+    let b: usize = regions.iter().map(|r| r.price_discount()).sum();
+
     println!("Task A: {}", a);
+    println!("Task B: {}", b);
 }
