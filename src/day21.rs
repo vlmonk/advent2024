@@ -1,5 +1,69 @@
 use std::collections::HashMap;
 
+fn step(input: Vec<String>, keyboard: &Keyboard) -> Vec<String> {
+    let all = input
+        .into_iter()
+        .flat_map(|v| process(&v, keyboard))
+        .collect::<Vec<_>>();
+
+    let before_filter = all.len();
+
+    let min_cost = all.iter().map(|v| cost(v)).min().unwrap_or_default();
+    let selected: Vec<_> = all
+        .into_iter()
+        .filter(|v| cost(v) == min_cost)
+        .take(1)
+        .collect();
+
+    let after_filter = selected.len();
+
+    println!("B: {}, A: {}", before_filter, after_filter);
+
+    selected
+}
+
+fn cost(input: &str) -> usize {
+    // dbg!(input);
+    let mut chars = vec!['A'];
+    for c in input.chars() {
+        chars.push(c)
+    }
+    chars.push('A');
+
+    let total = chars.len();
+
+    (0..total - 1)
+        .map(|i| match (chars[i], chars[i + 1]) {
+            ('A', 'A') => 0,
+            ('A', '^') => 1,
+            ('A', '>') => 1,
+            ('A', 'v') => 2,
+            ('A', '<') => 3,
+            ('^', 'A') => 1,
+            ('^', '^') => 0,
+            ('^', '>') => 2,
+            ('^', 'v') => 1,
+            ('^', '<') => 2,
+            ('>', 'A') => 1,
+            ('>', '^') => 2,
+            ('>', '>') => 0,
+            ('>', 'v') => 1,
+            ('>', '<') => 2,
+            ('v', 'A') => 2,
+            ('v', '^') => 1,
+            ('v', '>') => 1,
+            ('v', 'v') => 0,
+            ('v', '<') => 1,
+            ('<', 'A') => 3,
+            ('<', '^') => 2,
+            ('<', '>') => 2,
+            ('<', 'v') => 1,
+            ('<', '<') => 0,
+            (_, _) => panic!("Invalid input"),
+        })
+        .sum()
+}
+
 struct Keyboard {
     keys: HashMap<char, (i32, i32)>,
     gap: (i32, i32),
@@ -69,22 +133,13 @@ impl<'a> Code<'a> {
         let numeric = Keyboard::numeric();
         let directional = Keyboard::directional();
 
-        let l1 = process(self.value, &numeric);
-        dbg!(&l1.len());
+        let mut l1 = process(self.value, &numeric);
 
-        let l2 = l1
-            .into_iter()
-            .flat_map(|v| process(&v, &directional))
-            .collect::<Vec<_>>();
-        dbg!(&l2.len());
+        for _ in 0..2 {
+            l1 = step(l1, &directional);
+        }
 
-        let l3 = l2
-            .into_iter()
-            .flat_map(|v| process(&v, &directional))
-            .collect::<Vec<_>>();
-        dbg!(&l3.len());
-
-        l3.into_iter().map(|s| s.len()).min().unwrap_or_default()
+        l1.into_iter().map(|s| s.len()).min().unwrap_or_default()
     }
 
     fn num_value(&self) -> usize {
@@ -99,20 +154,20 @@ fn variants(
 ) -> impl Iterator<Item = (char, (i32, i32))> {
     let mut variants = vec![];
 
-    if current.0 < target.0 && keyboard.gap != (current.0 + 1, current.1) {
-        variants.push(('>', (current.0 + 1, current.1)));
-    }
-
-    if current.0 > target.0 && keyboard.gap != (current.0 - 1, current.1) {
-        variants.push(('<', (current.0 - 1, current.1)));
-    }
-
     if current.1 < target.1 && keyboard.gap != (current.0, current.1 + 1) {
         variants.push(('v', (current.0, current.1 + 1)));
     }
 
     if current.1 > target.1 && keyboard.gap != (current.0, current.1 - 1) {
         variants.push(('^', (current.0, current.1 - 1)));
+    }
+
+    if current.0 < target.0 && keyboard.gap != (current.0 + 1, current.1) {
+        variants.push(('>', (current.0 + 1, current.1)));
+    }
+
+    if current.0 > target.0 && keyboard.gap != (current.0 - 1, current.1) {
+        variants.push(('<', (current.0 - 1, current.1)));
     }
 
     variants.into_iter()
@@ -123,13 +178,18 @@ fn process_key(current: (i32, i32), target: (i32, i32), keyboard: &Keyboard) -> 
         return vec!["".into()];
     }
 
-    variants(current, target, keyboard)
+    let v: Vec<_> = variants(current, target, keyboard)
         .flat_map(|(c, n)| {
             process_key(n, target, keyboard)
                 .into_iter()
                 .map(move |rest| format!("{}{}", c, rest))
         })
-        .collect()
+        .collect();
+
+    let min_cost = v.iter().map(|x| cost(x)).min().unwrap_or_default();
+
+    let res: Vec<_> = v.into_iter().filter(|v| cost(v) == min_cost).collect();
+    res
 }
 
 fn process_part(current: (i32, i32), keys: &[char], keyboard: &Keyboard) -> Vec<String> {
@@ -230,5 +290,12 @@ mod test {
         let resutl = process_part(current, &keys, &keyboard);
 
         assert_eq!(resutl, vec!["^<A>^A", "^<A^>A"]);
+    }
+
+    #[test]
+    fn test_cost() {
+        assert_eq!(cost("A"), 0);
+        assert_eq!(cost("^"), 1);
+        assert_eq!(cost("^vA"), 4);
     }
 }
