@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Block {
@@ -9,6 +9,10 @@ enum Block {
 impl Block {
     fn is_empty(self) -> bool {
         self == Block::Empty
+    }
+
+    fn is_block(self) -> bool {
+        !self.is_empty()
     }
 }
 
@@ -21,6 +25,59 @@ impl Display for Block {
     }
 }
 
+struct BlockIter<'a> {
+    current: usize,
+    disk: &'a Disk,
+}
+
+impl<'a> Iterator for BlockIter<'a> {
+    // block id, index, len
+    type Item = (usize, usize, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let total = self.disk.blocks.len();
+
+        // first, seek for next block
+        let (current, id) = (self.current..total).find_map(|idx| match self.disk.blocks[idx] {
+            Block::File(id) => Some((idx, id)),
+            _ => None,
+        })?;
+
+        // and calculate len of block
+        let len = (current..total)
+            .take_while(
+                |idx| matches!(self.disk.blocks[*idx], Block::File(id_len) if (id_len == id)),
+            )
+            .count();
+        self.current = current + len;
+        Some((id, current, len))
+    }
+}
+
+struct HolesIter<'a> {
+    current: usize,
+    disk: &'a Disk,
+}
+
+impl<'a> Iterator for HolesIter<'a> {
+    // index, len
+    type Item = (usize, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let total = self.disk.blocks.len();
+
+        // first, seek for next hole
+        let current = (self.current..total).find(|idx| self.disk.blocks[*idx].is_empty())?;
+        // and calculate len
+        let len = (current..total)
+            .take_while(|idx| self.disk.blocks[*idx].is_empty())
+            .count();
+        self.current = current + len;
+        Some((current, len))
+    }
+}
+
+#[derive(Clone)]
 struct Disk {
     blocks: Vec<Block>,
 }
@@ -75,8 +132,31 @@ impl Disk {
 
             self.blocks[a] = self.blocks[b];
             self.blocks[b] = Block::Empty;
+        }
+    }
 
-            // println!("S: {self} / {a} <-> {b}");
+    pub fn defrag_file(&mut self) {
+        let hashed_info: HashMap<usize, (usize, usize)> = self
+            .blocks()
+            .map(|(id, idx, len)| (id, (idx, len)))
+            .collect();
+
+        let max_id = *hashed_info.keys().max().unwrap();
+
+        for id in (0..=max_id).rev() {
+            let (idx, len) = hashed_info.get(&id).unwrap();
+
+            // println!("Start moving block {id} (pos: {idx}, len {len})");
+            // println!("B: {self}");
+
+            if let Some((h_idx, h_len)) = self.holes().find(|(_, hole_len)| hole_len >= len) {
+                if h_idx < *idx {
+                    for i in 0..*len {
+                        self.blocks[h_idx + i] = Block::File(id);
+                        self.blocks[idx + i] = Block::Empty;
+                    }
+                }
+            }
         }
     }
 
@@ -91,10 +171,21 @@ impl Disk {
             .map(|(idx, value)| idx * value)
             .sum()
     }
-}
 
-// 02.111....222.2
-// 012345678901234
+    fn blocks(&self) -> BlockIter {
+        BlockIter {
+            current: 0,
+            disk: self,
+        }
+    }
+
+    fn holes(&self) -> HolesIter {
+        HolesIter {
+            current: 0,
+            disk: self,
+        }
+    }
+}
 
 impl Display for Disk {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -107,11 +198,13 @@ impl Display for Disk {
 }
 
 fn main() {
-    // let input = "12345";
     let input = std::fs::read_to_string("data/day09.txt").unwrap();
-    let mut disk = Disk::parse(&input);
-    // println!("{disk}");
-    disk.defrag();
-    // println!("{disk}");
-    println!("A: {}", disk.checksum());
+    let mut disk_a = Disk::parse(&input);
+    let mut disk_b = disk_a.clone();
+
+    disk_a.defrag();
+    disk_b.defrag_file();
+
+    println!("A: {}", disk_a.checksum());
+    println!("B: {}", disk_b.checksum());
 }
